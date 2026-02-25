@@ -34,6 +34,8 @@ def main ():
     while j < len(itens):
 
         op = itens[j]
+        if op not in operadores:
+            raise Exception()
         
         if j+1 >= len(itens):
             raise Exception()
