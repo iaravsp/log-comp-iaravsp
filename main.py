@@ -25,6 +25,9 @@ class Lexer:
         elif self.source[self.position] == '-': 
             self.next = Token('MINUS', '-')
             self.position +=1
+        elif self.source[self.position] == '^': 
+            self.next = Token('XOR', '^')
+            self.position +=1
         elif self.source[self.position].isdigit():
             digito = str(self.source[self.position])
             self.position +=1
@@ -46,8 +49,8 @@ class Parser():
             resultado = Parser.lexer.next.value
             Parser.lexer.select_next()
 
-        while Parser.lexer.next.type == "PLUS" or Parser.lexer.next.type == "MINUS":
-            operador = '+' if Parser.lexer.next.type == "PLUS" else '-'
+        while Parser.lexer.next.type == "PLUS" or Parser.lexer.next.type == "MINUS" or Parser.lexer.next.type == "XOR" :
+            operador = '+' if Parser.lexer.next.type == "PLUS" else ('-' if Parser.lexer.next.type == "MINUS" else "^")
             Parser.lexer.select_next()
             if Parser.lexer.next.type != 'INT':
                 raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
@@ -55,6 +58,8 @@ class Parser():
                 resultado += Parser.lexer.next.value
             elif operador == "-":
                 resultado -= Parser.lexer.next.value
+            elif operador == "^":
+                resultado ^= Parser.lexer.next.value
             Parser.lexer.select_next()
         return resultado
 
