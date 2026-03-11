@@ -29,8 +29,12 @@ class Lexer:
             self.next = Token('XOR', '^')
             self.position +=1
         elif self.source[self.position] == '*':
-            self.next = Token('MULT', '*')
             self.position +=1
+            if self.position < len(self.source) and self.source[self.position] == '*':
+                self.next = Token('POWER', '**')
+                self.position +=1
+            else:
+                self.next = Token('MULT', '*')
         elif self.source[self.position] == '/':
             self.next = Token('DIV', '/')
             self.position +=1
@@ -80,15 +84,15 @@ class Parser():
     
     @staticmethod
     def parse_term():
-        resultado = Parser.parse_factor()
+        resultado = Parser.parse_unary()
         while Parser.lexer.next.type == "MULT" or Parser.lexer.next.type == "DIV":
             operador = '*' if Parser.lexer.next.type == "MULT" else '/'
             Parser.lexer.select_next()
-            proximo_factor = Parser.parse_factor()
+            proximo_unary = Parser.parse_unary()
             if operador == "*":
-                resultado *= proximo_factor
+                resultado *= proximo_unary
             elif operador == "/":
-                resultado //= proximo_factor
+                resultado //= proximo_unary
         return resultado
     @staticmethod
     def parse_factor():
@@ -96,14 +100,14 @@ class Parser():
             resultado = Parser.lexer.next.value
             Parser.lexer.select_next()
             return resultado
-        elif Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
-            sinal = Parser.lexer.next.type
-            Parser.lexer.select_next()
-            resultado = Parser.parse_factor()
-            if sinal == 'MINUS':
-                return -resultado
-            else:
-                return resultado
+        # elif Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
+        #     sinal = Parser.lexer.next.type
+        #     Parser.lexer.select_next()
+        #     resultado = Parser.parse_power()
+        #     if sinal == 'MINUS':
+        #         return -resultado
+        #     else:
+        #         return resultado
         elif Parser.lexer.next.type == 'OPEN_PAR':
             Parser.lexer.select_next()
             expr = Parser.parse_expression()
@@ -114,6 +118,32 @@ class Parser():
         else:
             raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
 
+    @staticmethod
+    def parse_power():
+        resultado = Parser.parse_factor()
+        while Parser.lexer.next.type == "POWER":
+            Parser.lexer.select_next()
+            proximo_factor = Parser.parse_unary()
+            resultado **= proximo_factor
+        return resultado
+
+    @staticmethod
+    def parse_unary():
+        if Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
+            sinal = Parser.lexer.next.type
+            Parser.lexer.select_next()
+            resultado = Parser.parse_unary()
+            if sinal == 'MINUS':
+                return -resultado
+            else:
+                return resultado
+        else:
+            resultado = Parser.parse_power()
+            return resultado
+        
+
+
+    
 def main():
     entrada = sys.argv[1]
     print(Parser.run(entrada))
