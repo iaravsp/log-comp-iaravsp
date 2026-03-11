@@ -8,7 +8,7 @@ class Token:
 # análise léxica 
 class Lexer:
     def __init__(self, source: str):
-        self.source = source#código de entrada
+        self.source = source #código de entrada
         self.position = 0
         self.next = None
 
@@ -28,6 +28,18 @@ class Lexer:
         elif self.source[self.position] == '^': 
             self.next = Token('XOR', '^')
             self.position +=1
+        elif self.source[self.position] == '*':
+            self.next = Token('MULT', '*')
+            self.position +=1
+        elif self.source[self.position] == '/':
+            self.next = Token('DIV', '/')
+            self.position +=1
+        elif self.source[self.position] == '(':
+            self.next = Token('OPEN_PAR', '(')
+            self.position +=1
+        elif self.source[self.position] == ')':
+            self.next = Token('CLOSE_PAR', ')')
+            self.position +=1
         elif self.source[self.position].isdigit():
             digito = str(self.source[self.position])
             self.position +=1
@@ -43,24 +55,18 @@ class Parser():
 
     @staticmethod
     def parse_expression():
-        if Parser.lexer.next.type != 'INT':
-            raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
-        else: # é INT
-            resultado = Parser.lexer.next.value
-            Parser.lexer.select_next()
+        resultado = Parser.parse_term()
 
         while Parser.lexer.next.type == "PLUS" or Parser.lexer.next.type == "MINUS" or Parser.lexer.next.type == "XOR" :
             operador = '+' if Parser.lexer.next.type == "PLUS" else ('-' if Parser.lexer.next.type == "MINUS" else "^")
             Parser.lexer.select_next()
-            if Parser.lexer.next.type != 'INT':
-                raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
+            proximo_term = Parser.parse_term()
             if operador == "+":
-                resultado += Parser.lexer.next.value
+                resultado += proximo_term
             elif operador == "-":
-                resultado -= Parser.lexer.next.value
+                resultado -= proximo_term
             elif operador == "^":
-                resultado ^= Parser.lexer.next.value
-            Parser.lexer.select_next()
+                resultado ^= proximo_term
         return resultado
 
     @staticmethod
@@ -71,6 +77,42 @@ class Parser():
         if Parser.lexer.next.type != 'EOF':
             raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
         return pars
+    
+    @staticmethod
+    def parse_term():
+        resultado = Parser.parse_factor()
+        while Parser.lexer.next.type == "MULT" or Parser.lexer.next.type == "DIV":
+            operador = '*' if Parser.lexer.next.type == "MULT" else '/'
+            Parser.lexer.select_next()
+            proximo_factor = Parser.parse_factor()
+            if operador == "*":
+                resultado *= proximo_factor
+            elif operador == "/":
+                resultado //= proximo_factor
+        return resultado
+    @staticmethod
+    def parse_factor():
+        if Parser.lexer.next.type == 'INT':
+            resultado = Parser.lexer.next.value
+            Parser.lexer.select_next()
+            return resultado
+        elif Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
+            sinal = Parser.lexer.next.type
+            Parser.lexer.select_next()
+            resultado = Parser.parse_factor()
+            if sinal == 'MINUS':
+                return -resultado
+            else:
+                return resultado
+        elif Parser.lexer.next.type == 'OPEN_PAR':
+            Parser.lexer.select_next()
+            expr = Parser.parse_expression()
+            if Parser.lexer.next.type != 'CLOSE_PAR':
+                raise ValueError(f"[Parser] Expected ')'")
+            Parser.lexer.select_next()
+            return expr
+        else:
+            raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
 
 def main():
     entrada = sys.argv[1]

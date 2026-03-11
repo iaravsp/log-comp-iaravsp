@@ -1,5 +1,10 @@
-# log-comp-iaravsp
+```ebnf
 
-[![Compilation Status](https://compiler-tester.insper-comp.com.br/svg/iaravsp/log-comp-iaravsp)](https://compiler-tester.insper-comp.com.br/svg/iaravsp/log-comp-iaravsp)
+EXPRESSION = TERM, { ("+" | "-"), TERM } ;
+TERM = FACTOR, { ("*" | "/"), FACTOR } ;
+FACTOR = ("+" | "-"), FACTOR | "(", EXPRESSION, ")" | NUMBER ;
+NUMBER = DIGIT, {DIGIT} ;
+DIGIT = 0 | 1 | ... | 9 ;
 
-This repository is monitored by Compiler Tester for automatic compilation status.
+```
+![Diagrama Sintático do Compilador](image.png) 
