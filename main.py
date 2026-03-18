@@ -35,6 +35,8 @@ class BinOp(Node):
         if self.value == '*': 
             return filho1_result * filho2_result
         if self.value == '/': 
+            if filho2_result == 0:
+                raise ValueError("[Semantic] divisão por zero não permitida")
             return filho1_result // filho2_result
         if self.value == '^':
             return filho1_result ^ filho2_result
