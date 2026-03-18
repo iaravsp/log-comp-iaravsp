@@ -1,49 +1,46 @@
 import sys
 
 class Node:
-    def __init__(self, valor, children):
-        self.value = valor
+    def __init__(self, value, children):
+        self.value = value
         self.children = children
     def evaluate(self):
         pass
 
 class IntVal(Node):
-    def __init__(self, valor):
-        super().__init__(valor,[])
+    def __init__(self, value, children):
+        super().__init__(value, [])
     def evaluate(self):
         return self.value
 
 class UnOp(Node):
-    def __init__(self, valor, filho):
-        super().__init__(valor, [filho])
+    def __init__(self, value, children):
+        super().__init__(value, children)
     def evaluate(self):
-        resultado = self.children[0].evaluate()
-        if self.value == '-':
-            return -resultado
-        elif self.value == '+':
-            return resultado
-        
-class BinOp(Node):
-    def __init__(self, valor, filho1, filho2):
-        super().__init__(valor, [filho1, filho2])
-    def evaluate(self):
-        filho1_result = self.children[0].evaluate()
-        filho2_result = self.children[1].evaluate()
-        if self.value == '+':
-            return filho1_result + filho2_result
-        elif self.value == '-':
-            return filho1_result - filho2_result
-        elif self.value == '*':
-            return filho1_result * filho2_result
-        elif self.value == '/':
-            return filho1_result // filho2_result
-        elif self.value == '^':
-            return filho1_result ^ filho2_result
-        elif self.value == '**':
-            return filho1_result ** filho2_result
-        else:
-            raise ValueError(f"[Semantic] Operador binário inválido {self.value}")
+        res = self.children[0].evaluate()
+        if self.value == '-': 
+            return -res
+        return res
 
+class BinOp(Node):
+    def __init__(self, value, children):
+        super().__init__(value, children)
+    def evaluate(self):
+        filho1_result  = self.children[0].evaluate()
+        filho2_result  = self.children[1].evaluate()
+        if self.value == '+': 
+            return filho1_result + filho2_result
+        if self.value == '-':
+            return filho1_result - filho2_result
+        if self.value == '*': 
+            return filho1_result * filho2_result
+        if self.value == '/': 
+            return filho1_result // filho2_result
+        if self.value == '^':
+            return filho1_result ^ filho2_result
+        if self.value == '**':
+            return filho1_result ** filho2_result
+        raise ValueError(f"[Semantic] Operador inválido {self.value}")
 
 class Token:
      def __init__(self, tipo, valor):
@@ -74,12 +71,8 @@ class Lexer:
             self.next = Token('XOR', '^')
             self.position +=1
         elif self.source[self.position] == '*':
+            self.next = Token('MULT', '*')
             self.position +=1
-            if self.position < len(self.source) and self.source[self.position] == '*':
-                self.next = Token('POWER', '**')
-                self.position +=1
-            else:
-                self.next = Token('MULT', '*')
         elif self.source[self.position] == '/':
             self.next = Token('DIV', '/')
             self.position +=1
@@ -110,7 +103,7 @@ class Parser():
             operador = '+' if Parser.lexer.next.type == "PLUS" else ('-' if Parser.lexer.next.type == "MINUS" else "^")
             Parser.lexer.select_next()
             proximo_term = Parser.parse_term()
-            resultado = BinOp(operador, resultado, proximo_term)
+            resultado = BinOp(operador, [resultado, proximo_term])
         return resultado
 
     @staticmethod
@@ -124,20 +117,26 @@ class Parser():
     
     @staticmethod
     def parse_term():
-        resultado = Parser.parse_unary()
+        resultado = Parser.parse_factor()
         while Parser.lexer.next.type == "MULT" or Parser.lexer.next.type == "DIV":
             operador = '*' if Parser.lexer.next.type == "MULT" else '/'
             Parser.lexer.select_next()
-            proximo_unary = Parser.parse_unary()
-            resultado = BinOp(operador, resultado, proximo_unary)
+            proximo_factor = Parser.parse_factor()
+            resultado = BinOp(operador, [resultado, proximo_factor]) 
         return resultado
     @staticmethod
     def parse_factor():
         if Parser.lexer.next.type == 'INT':
             resultado = Parser.lexer.next.value
             Parser.lexer.select_next()
-            no_resultado = IntVal(resultado)
-            return no_resultado
+            resultado = IntVal(resultado, [])
+            return resultado
+        elif Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
+            sinal = Parser.lexer.next.type
+            Parser.lexer.select_next()
+            resultado = Parser.parse_factor()
+            resultado = UnOp('-' if sinal == 'MINUS' else '+', [resultado])
+            return resultado
         elif Parser.lexer.next.type == 'OPEN_PAR':
             Parser.lexer.select_next()
             expr = Parser.parse_expression()
@@ -148,32 +147,9 @@ class Parser():
         else:
             raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
 
-    @staticmethod
-    def parse_power():
-        resultado = Parser.parse_factor()
-        while Parser.lexer.next.type == "POWER":
-            Parser.lexer.select_next()
-            proximo_factor = Parser.parse_unary()
-            resultado = BinOp('**', resultado, proximo_factor)
-        return resultado
-
-    @staticmethod
-    def parse_unary():
-        if Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
-            sinal = Parser.lexer.next.type
-            Parser.lexer.select_next()
-            resultado = Parser.parse_unary()
-            return UnOp('-' if sinal == 'MINUS' else '+', resultado)
-        else:
-            resultado = Parser.parse_power()
-            return resultado
-            
 def main():
     entrada = sys.argv[1]
-    raiz_arvore = Parser.run(entrada) # nó principal da árvore de sintaxe abstrata
-    resultado = raiz_arvore.evaluate()
-    print(resultado)
-
+    print(Parser.run(entrada).evaluate())
 
 if __name__ == "__main__":
     main()
