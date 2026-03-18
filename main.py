@@ -1,5 +1,50 @@
 import sys
 
+class Node:
+    def __init__(self, valor, children):
+        self.value = valor
+        self.children = children
+    def evaluate(self):
+        pass
+
+class IntVal(Node):
+    def __init__(self, valor):
+        super().__init__(valor,[])
+    def evaluate(self):
+        return self.value
+
+class UnOp(Node):
+    def __init__(self, valor, filho):
+        super().__init__(valor, [filho])
+    def evaluate(self):
+        resultado = self.children[0].evaluate()
+        if self.value == '-':
+            return -resultado
+        elif self.value == '+':
+            return resultado
+        
+class BinOp(Node):
+    def __init__(self, valor, filho1, filho2):
+        super().__init__(valor, [filho1, filho2])
+    def evaluate(self):
+        filho1_result = self.children[0].evaluate()
+        filho2_result = self.children[1].evaluate()
+        if self.value == '+':
+            return filho1_result + filho2_result
+        elif self.value == '-':
+            return filho1_result - filho2_result
+        elif self.value == '*':
+            return filho1_result * filho2_result
+        elif self.value == '/':
+            return filho1_result // filho2_result
+        elif self.value == '^':
+            return filho1_result ^ filho2_result
+        elif self.value == '**':
+            return filho1_result ** filho2_result
+        else:
+            raise ValueError(f"[Semantic] Operador binário inválido {self.value}")
+
+
 class Token:
      def __init__(self, tipo, valor):
         self.type: str = tipo
@@ -65,12 +110,7 @@ class Parser():
             operador = '+' if Parser.lexer.next.type == "PLUS" else ('-' if Parser.lexer.next.type == "MINUS" else "^")
             Parser.lexer.select_next()
             proximo_term = Parser.parse_term()
-            if operador == "+":
-                resultado += proximo_term
-            elif operador == "-":
-                resultado -= proximo_term
-            elif operador == "^":
-                resultado ^= proximo_term
+            resultado = BinOp(operador, resultado, proximo_term)
         return resultado
 
     @staticmethod
@@ -89,25 +129,15 @@ class Parser():
             operador = '*' if Parser.lexer.next.type == "MULT" else '/'
             Parser.lexer.select_next()
             proximo_unary = Parser.parse_unary()
-            if operador == "*":
-                resultado *= proximo_unary
-            elif operador == "/":
-                resultado //= proximo_unary
+            resultado = BinOp(operador, resultado, proximo_unary)
         return resultado
     @staticmethod
     def parse_factor():
         if Parser.lexer.next.type == 'INT':
             resultado = Parser.lexer.next.value
             Parser.lexer.select_next()
-            return resultado
-        # elif Parser.lexer.next.type == 'MINUS' or Parser.lexer.next.type == 'PLUS':
-        #     sinal = Parser.lexer.next.type
-        #     Parser.lexer.select_next()
-        #     resultado = Parser.parse_power()
-        #     if sinal == 'MINUS':
-        #         return -resultado
-        #     else:
-        #         return resultado
+            no_resultado = IntVal(resultado)
+            return no_resultado
         elif Parser.lexer.next.type == 'OPEN_PAR':
             Parser.lexer.select_next()
             expr = Parser.parse_expression()
@@ -124,7 +154,7 @@ class Parser():
         while Parser.lexer.next.type == "POWER":
             Parser.lexer.select_next()
             proximo_factor = Parser.parse_unary()
-            resultado **= proximo_factor
+            resultado = BinOp('**', resultado, proximo_factor)
         return resultado
 
     @staticmethod
@@ -133,20 +163,17 @@ class Parser():
             sinal = Parser.lexer.next.type
             Parser.lexer.select_next()
             resultado = Parser.parse_unary()
-            if sinal == 'MINUS':
-                return -resultado
-            else:
-                return resultado
+            return UnOp('-' if sinal == 'MINUS' else '+', resultado)
         else:
             resultado = Parser.parse_power()
             return resultado
-        
-
-
-    
+            
 def main():
     entrada = sys.argv[1]
-    print(Parser.run(entrada))
+    raiz_arvore = Parser.run(entrada) # nó principal da árvore de sintaxe abstrata
+    resultado = raiz_arvore.evaluate()
+    print(resultado)
+
 
 if __name__ == "__main__":
     main()
