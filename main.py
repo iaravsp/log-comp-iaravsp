@@ -10,11 +10,11 @@ class PrePro:
 class SymbolTable:
     def __init__(self):
         self.table = {}
-    def getter(self, name):
+    def get_value(self, name):
         if name not in self.table.keys():
             raise ValueError("[Semantic] - A variável não foi definida")
         return self.table[name]
-    def setter(self, name, value):
+    def set_value(self, name, value):
         self.table[name] = Variable(value)
         
 class Variable:
@@ -32,7 +32,7 @@ class Identifier(Node):
     def __init__(self, value, children):
         super().__init__(value,[])
     def evaluate(self, st: SymbolTable):
-        return st.getter(self.value).value
+        return st.get_value(self.value).value
     
 class Assignment(Node):
     def __init__(self, value, children):
@@ -40,7 +40,7 @@ class Assignment(Node):
     def evaluate(self, st: SymbolTable):
         filho1  = self.children[0].value
         filho2  = self.children[1].evaluate(st)
-        st.setter(filho1, filho2)
+        st.set_value(filho1, filho2)
 
 class Print(Node):
     def __init__(self, value, children):
@@ -86,7 +86,7 @@ class BinOp(Node):
         raise ValueError(f"[Semantic] Operador inválido {self.value}")
 
 class NoOp(Node):
-    def __init__(self):
+    def __init__(self, value=None, children=None):
         super().__init__(None, [])
     def evaluate(self, st: SymbolTable):
         pass
