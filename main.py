@@ -203,6 +203,8 @@ class Lexer:
                 self.next = Token(tipo_token, palavra_lida)
             else:
                 self.next = Token('IDEN', palavra_lida)
+        else:
+            raise ValueError(f"[Lexer] Caractere inválido: '{self.source[self.position]}'")
 
 class Block(Node):
     def __init__(self, value, children):
@@ -262,9 +264,9 @@ class Parser():
             return expr
         elif Parser.lexer.next.type == 'READ':
             Parser.lexer.select_next()
-            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("Esperado '(' após read")
+            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("[Parser] Esperado '(' após read")
             Parser.lexer.select_next()
-            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')' após read")
+            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("[Parser] Esperado ')' após read")
             Parser.lexer.select_next()
             return Read(None, [])
         elif Parser.lexer.next.type == 'NOT':
@@ -277,6 +279,9 @@ class Parser():
     def parse_program():
         comandos = []
         while Parser.lexer.next.type != 'EOF':
+            if Parser.lexer.next.type == 'END':
+                Parser.lexer.select_next()
+                continue
             no = Parser.parse_statement()
             comandos.append(no)
             
@@ -296,6 +301,9 @@ class Parser():
     def parse_block():
         comandos = []
         while Parser.lexer.next.type not in ['EOF', 'CLOSE_BRA', 'ELSE']:
+            if Parser.lexer.next.type == 'END':
+                Parser.lexer.select_next()
+                continue
             no = Parser.parse_statement()
             comandos.append(no)
             
@@ -304,19 +312,20 @@ class Parser():
             elif Parser.lexer.next.type not in ['EOF', 'CLOSE_BRA', 'ELSE']:
                 raise ValueError(f"[Parser] Token inesperado no bloco: {Parser.lexer.next.type}")
         return Block(None, comandos)
+    
 
     @staticmethod
     def parse_statement():
         if Parser.lexer.next.type == 'IF':
             Parser.lexer.select_next()
         
-            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("Esperado '('")
+            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("[Parser] Esperado '('")
             Parser.lexer.select_next()
             condicao = Parser.parse_bool_expression()
-            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')'")
+            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("[Parser] Esperado ')'")
             Parser.lexer.select_next()
             
-            if Parser.lexer.next.type != 'OPEN_IF_BRA': raise ValueError("Esperado 'then'")
+            if Parser.lexer.next.type != 'OPEN_IF_BRA': raise ValueError("[Parser] Esperado 'then'")
             Parser.lexer.select_next()
             if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
             
@@ -327,11 +336,11 @@ class Parser():
                 if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
                 bloco_else = Parser.parse_block()
                 
-                if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end' apos else")
+                if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("[Parser] Esperado 'end' apos else")
                 Parser.lexer.select_next()
                 return If(None, [condicao, bloco_then, bloco_else])
             
-            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end'")
+            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("[Parser] Esperado 'end'")
             Parser.lexer.select_next()
             return If(None, [condicao, bloco_then])
 
@@ -339,19 +348,19 @@ class Parser():
             Parser.lexer.select_next()
             
 
-            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("Esperado '('")
+            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("[Parser] Esperado '('")
             Parser.lexer.select_next()
             condicao = Parser.parse_bool_expression()
-            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')'")
+            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("[Parser] Esperado ')'")
             Parser.lexer.select_next()
             
-            if Parser.lexer.next.type != 'OPEN_BRA': raise ValueError("Esperado 'do'")
+            if Parser.lexer.next.type != 'OPEN_BRA': raise ValueError("[Parser] Esperado 'do'")
             Parser.lexer.select_next()
             if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
             
             bloco = Parser.parse_block()
 
-            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end'")
+            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("[Parser] Esperado 'end'")
             Parser.lexer.select_next()
             return While(None, [condicao, bloco])
             
@@ -379,6 +388,14 @@ class Parser():
                     raise ValueError("[Parser] Esperado ')'")
             else:
                 raise ValueError("[Parser] Esperado '(' ")
+            
+        elif Parser.lexer.next.type == 'OPEN_BRA':
+            Parser.lexer.select_next()
+            if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
+            bloco = Parser.parse_block()
+            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("[Parser] Esperado 'end'")
+            Parser.lexer.select_next()
+            return bloco
         else:
             return NoOp()
         
