@@ -53,7 +53,7 @@ class IntVal(Node):
         super().__init__(value, [])
     def evaluate(self, st: SymbolTable):
         return self.value
-
+    
 class UnOp(Node):
     def __init__(self, value, children):
         super().__init__(value, children)
@@ -61,6 +61,8 @@ class UnOp(Node):
         res = self.children[0].evaluate(st)
         if self.value == '-': 
             return -res
+        if self.value == 'not':
+            return int(not res)
         return res
 
 class BinOp(Node):
@@ -83,6 +85,16 @@ class BinOp(Node):
             return filho1_result ^ filho2_result
         if self.value == '**':
             return filho1_result ** filho2_result
+        if self.value == '==': 
+            return int(filho1_result == filho2_result)
+        if self.value == '>': 
+            return int(filho1_result > filho2_result)
+        if self.value == '<': 
+            return int(filho1_result < filho2_result)
+        if self.value == 'or': 
+            return int(filho1_result or filho2_result)
+        if self.value == 'and': 
+            return int(filho1_result and filho2_result)
         raise ValueError(f"[Semantic] Operador inválido {self.value}")
 
 class NoOp(Node):
@@ -91,12 +103,28 @@ class NoOp(Node):
     def evaluate(self, st: SymbolTable):
         pass
 
+class IfNode(Node):
+    def evaluate(self, st: SymbolTable):
+        if self.children[0].evaluate(st):
+            self.children[1].evaluate(st)
+        elif len(self.children) == 3:
+            self.children[2].evaluate(st)
+
+class WhileNode(Node):
+    def evaluate(self, st: SymbolTable):
+        while self.children[0].evaluate(st):
+            self.children[1].evaluate(st)
+
+class ReadNode(Node):
+    def evaluate(self, st: SymbolTable):
+        return int(input())
+
 class Token:
      def __init__(self, tipo, valor):
         self.type: str = tipo
         self.value: int = valor
 
-PALAVRAS_RESERVADAS = ["print"]
+PALAVRAS_RESERVADAS = ["print", "if", "then", "else", "while", "do", "end", "read", "and", "or", "not"]
 # análise léxica 
 class Lexer:
     def __init__(self, source: str):
@@ -136,9 +164,24 @@ class Lexer:
             self.next = Token('END', '\n')
             self.position +=1
         elif self.source[self.position] == '=':
-            self.next = Token('ASSIGN', '=')
-            self.position +=1
-
+            if self.position + 1 < len(self.source) and self.source[self.position + 1] == '=':
+                self.next = Token('EQ', '==')
+                self.position += 2
+            else:
+                self.next = Token('ASSIGN', '=')
+                self.position += 1
+        elif self.source[self.position] == '>':
+            self.next = Token('GT', '>')
+            self.position += 1
+        elif self.source[self.position] == '<':
+            self.next = Token('LT', '<')
+            self.position += 1
+        elif self.source[self.position].isdigit(): 
+            num_str = ''
+            while self.position < len(self.source) and self.source[self.position].isdigit():
+                num_str += self.source[self.position]
+                self.position += 1
+            self.next = Token('INT', int(num_str))
         elif self.source[self.position].isalpha():
             palavra_lida = str(self.source[self.position])
             self.position += 1
@@ -148,20 +191,18 @@ class Lexer:
                 self.position += 1
                 
             if palavra_lida in PALAVRAS_RESERVADAS:
-                tipo_token = palavra_lida.upper()
+                if palavra_lida == "then":
+                    tipo_token = "OPEN_IF_BRA"
+                elif palavra_lida == "do":
+                    tipo_token = "OPEN_BRA"
+                elif palavra_lida == "end":
+                    tipo_token = "CLOSE_BRA"
+                else:
+                    tipo_token = palavra_lida.upper()
+                    
                 self.next = Token(tipo_token, palavra_lida)
             else:
                 self.next = Token('IDEN', palavra_lida)
-
-        elif self.source[self.position].isdigit():
-            digito = str(self.source[self.position])
-            self.position +=1
-            while  self.position < len(self.source) and self.source[self.position].isdigit():
-                digito = digito + self.source[self.position]
-                self.position +=1
-            self.next = Token('INT', int(digito))
-        else:
-            raise ValueError(f"[Lexer] Invalid Symbol {self.source[self.position]}")
 
 class Block(Node):
     def __init__(self, value, children):
@@ -214,11 +255,22 @@ class Parser():
             return resultado
         elif Parser.lexer.next.type == 'OPEN_PAR':
             Parser.lexer.select_next()
-            expr = Parser.parse_expression()
+            expr = Parser.parse_bool_expression() 
             if Parser.lexer.next.type != 'CLOSE_PAR':
                 raise ValueError(f"[Parser] Expected ')'")
             Parser.lexer.select_next()
             return expr
+        elif Parser.lexer.next.type == 'READ':
+            Parser.lexer.select_next()
+            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("Esperado '(' após read")
+            Parser.lexer.select_next()
+            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')' após read")
+            Parser.lexer.select_next()
+            return ReadNode(None, [])
+        elif Parser.lexer.next.type == 'NOT':
+            Parser.lexer.select_next()
+            resultado = Parser.parse_factor()
+            return UnOp('not', [resultado])
         else:
             raise ValueError(f"[Parser] Unexpected token {Parser.lexer.next.value}")
     @staticmethod
@@ -241,21 +293,85 @@ class Parser():
         return Parser.parse_program()
 
     @staticmethod
+    def parse_block():
+        comandos = []
+        while Parser.lexer.next.type not in ['EOF', 'CLOSE_BRA', 'ELSE']:
+            no = Parser.parse_statement()
+            comandos.append(no)
+            
+            if Parser.lexer.next.type == 'END':
+                Parser.lexer.select_next()
+            elif Parser.lexer.next.type not in ['EOF', 'CLOSE_BRA', 'ELSE']:
+                raise ValueError(f"[Parser] Token inesperado no bloco: {Parser.lexer.next.type}")
+        return Block(None, comandos)
+
+    @staticmethod
     def parse_statement():
-        if Parser.lexer.next.type == 'IDEN':
+        if Parser.lexer.next.type == 'IF':
+            Parser.lexer.select_next()
+        
+            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("Esperado '('")
+            Parser.lexer.select_next()
+            condicao = Parser.parse_bool_expression()
+            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')'")
+            Parser.lexer.select_next()
+            
+            if Parser.lexer.next.type != 'OPEN_IF_BRA': raise ValueError("Esperado 'then'")
+            Parser.lexer.select_next()
+            if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
+            
+            bloco_then = Parser.parse_block()
+            
+            if Parser.lexer.next.type == 'ELSE':
+                Parser.lexer.select_next()
+                if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
+                bloco_else = Parser.parse_block()
+                
+                if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end' apos else")
+                Parser.lexer.select_next()
+                return IfNode(None, [condicao, bloco_then, bloco_else])
+            
+            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end'")
+            Parser.lexer.select_next()
+            return IfNode(None, [condicao, bloco_then])
+
+        elif Parser.lexer.next.type == 'WHILE':
+            Parser.lexer.select_next()
+            
+
+            if Parser.lexer.next.type != 'OPEN_PAR': raise ValueError("Esperado '('")
+            Parser.lexer.select_next()
+            condicao = Parser.parse_bool_expression()
+            if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')'")
+            Parser.lexer.select_next()
+            
+            if Parser.lexer.next.type != 'OPEN_BRA': raise ValueError("Esperado 'do'")
+            Parser.lexer.select_next()
+            if Parser.lexer.next.type == 'END': Parser.lexer.select_next()
+            
+            bloco = Parser.parse_block()
+
+            if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end'")
+            Parser.lexer.select_next()
+            return WhileNode(None, [condicao, bloco])
+            
+        elif Parser.lexer.next.type == 'IDEN':
             no_id = Identifier(Parser.lexer.next.value, [])
             Parser.lexer.select_next()
             if Parser.lexer.next.type == 'ASSIGN':
                 Parser.lexer.select_next()
-                expression = Parser.parse_expression()
+            
+                expression = Parser.parse_bool_expression()
                 return Assignment(None, [no_id, expression])
             else:
                 raise ValueError("[Parser] Esperado '=' após identificador")
+                
         elif Parser.lexer.next.type == 'PRINT':
             Parser.lexer.select_next()
             if Parser.lexer.next.type == 'OPEN_PAR':
                 Parser.lexer.select_next()
-                expression = Parser.parse_expression()
+     
+                expression = Parser.parse_bool_expression()
                 if Parser.lexer.next.type == 'CLOSE_PAR':
                     Parser.lexer.select_next()
                     return Print(None, [expression])
@@ -265,6 +381,32 @@ class Parser():
                 raise ValueError("[Parser] Esperado '(' ")
         else:
             return NoOp()
+        
+    @staticmethod
+    def parse_bool_expression():
+        resultado = Parser.parse_bool_term()
+        while Parser.lexer.next.type == 'OR':
+            Parser.lexer.select_next()
+            resultado = BinOp('or', [resultado, Parser.parse_bool_term()])
+        return resultado
+
+    @staticmethod
+    def parse_bool_term():
+        resultado = Parser.parse_rel_expression()
+        while Parser.lexer.next.type == 'AND':
+            Parser.lexer.select_next()
+            resultado = BinOp('and', [resultado, Parser.parse_rel_expression()])
+        return resultado
+
+    @staticmethod
+    def parse_rel_expression():
+        node_left = Parser.parse_expression()
+        if Parser.lexer.next.type in ['EQ', 'GT', 'LT']:
+            op = Parser.lexer.next.value
+            Parser.lexer.select_next()
+            node_right = Parser.parse_expression()
+            return BinOp(op, [node_left, node_right])
+        return node_left
 
 def main():
     nome_arquivo = sys.argv[1]
