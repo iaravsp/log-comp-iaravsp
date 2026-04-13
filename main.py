@@ -103,19 +103,19 @@ class NoOp(Node):
     def evaluate(self, st: SymbolTable):
         pass
 
-class IfNode(Node):
+class If(Node):
     def evaluate(self, st: SymbolTable):
         if self.children[0].evaluate(st):
             self.children[1].evaluate(st)
         elif len(self.children) == 3:
             self.children[2].evaluate(st)
 
-class WhileNode(Node):
+class While(Node):
     def evaluate(self, st: SymbolTable):
         while self.children[0].evaluate(st):
             self.children[1].evaluate(st)
 
-class ReadNode(Node):
+class Read(Node):
     def evaluate(self, st: SymbolTable):
         return int(input())
 
@@ -266,7 +266,7 @@ class Parser():
             Parser.lexer.select_next()
             if Parser.lexer.next.type != 'CLOSE_PAR': raise ValueError("Esperado ')' após read")
             Parser.lexer.select_next()
-            return ReadNode(None, [])
+            return Read(None, [])
         elif Parser.lexer.next.type == 'NOT':
             Parser.lexer.select_next()
             resultado = Parser.parse_factor()
@@ -329,11 +329,11 @@ class Parser():
                 
                 if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end' apos else")
                 Parser.lexer.select_next()
-                return IfNode(None, [condicao, bloco_then, bloco_else])
+                return If(None, [condicao, bloco_then, bloco_else])
             
             if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end'")
             Parser.lexer.select_next()
-            return IfNode(None, [condicao, bloco_then])
+            return If(None, [condicao, bloco_then])
 
         elif Parser.lexer.next.type == 'WHILE':
             Parser.lexer.select_next()
@@ -353,7 +353,7 @@ class Parser():
 
             if Parser.lexer.next.type != 'CLOSE_BRA': raise ValueError("Esperado 'end'")
             Parser.lexer.select_next()
-            return WhileNode(None, [condicao, bloco])
+            return While(None, [condicao, bloco])
             
         elif Parser.lexer.next.type == 'IDEN':
             no_id = Identifier(Parser.lexer.next.value, [])
