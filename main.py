@@ -69,7 +69,7 @@ class BoolVal(Node):
     def evaluate(self, st: SymbolTable):
         return Variable(self.value,'boolean')
 
-class StrVal(Node):
+class StringVal (Node):
     def __init__(self, value, children):
         super().__init__(value, [])
     def evaluate(self, st: SymbolTable):
@@ -332,7 +332,7 @@ class Parser():
         elif Parser.lexer.next.type == 'STR':
             resultado = Parser.lexer.next.value
             Parser.lexer.select_next()
-            resultado = StrVal(resultado, [])
+            resultado = StringVal(resultado, [])
             return resultado
         elif Parser.lexer.next.type == 'BOOL':
             resultado = Parser.lexer.next.value
