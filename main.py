@@ -72,14 +72,14 @@ class Node:
     id = 0
 
     @staticmethod
-    def newId():
+    def new_id():
         Node.id += 1
         return Node.id
 
     def __init__(self, value, children):
         self.value = value
         self.children = children
-        self.id = Node.newId()
+        self.id = Node.new_id()
 
     def evaluate(self, st: SymbolTable):
         pass
