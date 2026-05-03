@@ -19,7 +19,7 @@ class SymbolTable:
             raise ValueError("[Semantic] - A variável não foi declarada")
         if self.table[name].type != value.type:
             raise ValueError(f"[Semantic] Erro de tipo. Esperado {self.table[name].type}, recebido {value.type}")
-        self.table[name].value = value
+        self.table[name].value = value.value
     def create_variable(self, name, value, type):
         if name in self.table.keys():
             raise ValueError("[Semantic] - A variável já foi definida")
@@ -55,7 +55,11 @@ class Print(Node):
     def __init__(self, value, children):
         super().__init__(value,children)
     def evaluate(self, st: SymbolTable):
-        print(self.children[0].evaluate(st).value)
+        val = self.children[0].evaluate(st).value
+        if isinstance(val, bool):
+            print(str(val).lower())
+        else:
+            print(val)
 
 class IntVal(Node):
     def __init__(self, value, children):
@@ -67,7 +71,7 @@ class BoolVal(Node):
     def __init__(self, value, children):
         super().__init__(value, [])
     def evaluate(self, st: SymbolTable):
-        return Variable(self.value,'boolean')
+        return Variable(self.value == 'true', 'boolean')
 
 class StringVal (Node):
     def __init__(self, value, children):
@@ -121,24 +125,27 @@ class BinOp(Node):
         filho1_result  = self.children[0].evaluate(st)
         filho2_result  = self.children[1].evaluate(st)
         
-        if self.value in ['+', '-', '*', '/', '^', '**', '>', '<']:
+        if self.value in ['+', '-', '*', '/', '^', '**']:
             if filho1_result.type != 'number' or filho2_result.type != 'number':
                 raise ValueError(f"[Semantic] Operação '{self.value}' exige que ambos sejam 'number'. Recebeu {filho1_result.type} e {filho2_result.type}.")
-            
             if self.value == '+': return Variable(filho1_result.value + filho2_result.value, 'number')
             if self.value == '-': return Variable(filho1_result.value - filho2_result.value, 'number')
             if self.value == '*': return Variable(filho1_result.value * filho2_result.value, 'number')
-            if self.value == '/': 
+            if self.value == '/':
                 if filho2_result.value == 0: raise ValueError("[Semantic] Divisão por zero não permitida")
                 return Variable(filho1_result.value // filho2_result.value, 'number')
             if self.value == '^': return Variable(filho1_result.value ^ filho2_result.value, 'number')
             if self.value == '**': return Variable(filho1_result.value ** filho2_result.value, 'number')
-            
+
+        if self.value in ['>', '<']:
+            if filho1_result.type != filho2_result.type or filho1_result.type not in ['number', 'string']:
+                raise ValueError(f"[Semantic] Operação '{self.value}' exige que ambos sejam 'number' ou ambos 'string'. Recebeu {filho1_result.type} e {filho2_result.type}.")
             if self.value == '>': return Variable(filho1_result.value > filho2_result.value, 'boolean')
             if self.value == '<': return Variable(filho1_result.value < filho2_result.value, 'boolean')
 
         if self.value == '==':
-
+            if filho1_result.type != filho2_result.type:
+                raise ValueError(f"[Semantic] Operação '==' não pode comparar '{filho1_result.type}' com '{filho2_result.type}'.")
             return Variable(filho1_result.value == filho2_result.value, 'boolean')
 
         if self.value in ['or', 'and']:
@@ -147,8 +154,11 @@ class BinOp(Node):
             if self.value == 'or': return Variable(filho1_result.value or filho2_result.value, 'boolean')
             if self.value == 'and': return Variable(filho1_result.value and filho2_result.value, 'boolean')
 
-        if  self.value == '..':
-            return Variable(str(filho1_result.value) + str(filho2_result.value), 'string')
+        if self.value == '..':
+            def to_str(v):
+                if isinstance(v, bool): return str(v).lower()
+                return str(v)
+            return Variable(to_str(filho1_result.value) + to_str(filho2_result.value), 'string')
             
         raise ValueError(f"[Semantic] Operador inválido {self.value}")
 
@@ -160,15 +170,24 @@ class NoOp(Node):
 
 class If(Node):
     def evaluate(self, st: SymbolTable):
-        if self.children[0].evaluate(st).value:
+        cond = self.children[0].evaluate(st)
+        if cond.type != 'boolean':
+            raise ValueError(f"[Semantic] Condição do 'if' deve ser 'boolean', recebeu '{cond.type}'.")
+        if cond.value:
             self.children[1].evaluate(st)
         elif len(self.children) == 3:
             self.children[2].evaluate(st)
 
 class While(Node):
     def evaluate(self, st: SymbolTable):
-        while self.children[0].evaluate(st).value:
+        cond = self.children[0].evaluate(st)
+        if cond.type != 'boolean':
+            raise ValueError(f"[Semantic] Condição do 'while' deve ser 'boolean', recebeu '{cond.type}'.")
+        while cond.value:
             self.children[1].evaluate(st)
+            cond = self.children[0].evaluate(st)
+            if cond.type != 'boolean':
+                raise ValueError(f"[Semantic] Condição do 'while' deve ser 'boolean', recebeu '{cond.type}'.")
 
 class Read(Node):
     def evaluate(self, st: SymbolTable):
@@ -545,4 +564,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
