@@ -1,30 +1,22 @@
 ```ebnf
-
-PROGRAM = { STATEMENT } ;
-
-STATEMENT = ( "iden", "=", BOOLEXPRESSION
-          | "if", "(", BOOLEXPRESSION, ")", "then", { STATEMENT }, ( "end" | "else", { STATEMENT }, "end" )
-          | "local", "iden", "type", [ "=", BOOLEXPRESSION ]
-          | "while", "(", BOOLEXPRESSION, ")", "do", { STATEMENT }, "end"
-          | "print", "(", BOOLEXPRESSION, ")"
-          | BLOCK ), "EOL" ;
-
-BLOCK = "do", { STATEMENT }, "end" ;
-
+PROGRAM = { FUNCDEC | STATEMENT } ;
+FUNCDEC = "function", IDENTIFIER, "(",(| IDENTIFIER, TYPE, {",", IDENTIFIER, TYPE}),")",(TYPE|), "\n", {STATEMENT}, "end";
+VARDEC = "local", IDENTIFIER, TYPE, ("=", BOOLEXPRESSION|) ;
+BLOCK = "do", {STATEMENT, }, "end" ;
+STATEMENT = (VARDEC | (IDENTIFIER, ("=", BOOLEXPRESSION | "(",(BOOLEXPRESSION, {",", BOOLEXPRESSION} | ),")")) | ("print", "(", BOOLEXPRESSION, ")") | "return", BOOLEXPRESSION |), "\n"| ("if", BOOLEXPRESSION, "then", {STATEMENT}, (|"else", {STATEMENT})), "end" | ("while", BOOLEXPRESSION, "do", {STATEMENT}, "end") | BLOCK;
 BOOLEXPRESSION = BOOLTERM, { "or", BOOLTERM } ;
-
 BOOLTERM = RELEXPRESSION, { "and", RELEXPRESSION } ;
-
-RELEXPRESSION = EXPRESSION, [ ("==" | "<" | ">"), EXPRESSION ] ;
-
-EXPRESSION = TERM, { ("+" | "-" | ".."), TERM } ;
-
+RELEXPRESSION = EXPRESSION, {("==" | "<" | ">"), EXPRESSION};
+EXPRESSION = TERM, { ("+" | "-"), TERM } ;
 TERM = FACTOR, { ("*" | "/"), FACTOR } ;
-
-FACTOR = "int" | "string_val" | "bool_val" | "iden" 
-       | ("+" | "-" | "not"), FACTOR 
-       | "(", BOOLEXPRESSION, ")" 
-       | "read", "(", ")" ;
+FACTOR = NUMBER | STRING | BOOLEAN | IDENTIFIER, ("(",(BOOLEXPRESSION, {",", BOOLEXPRESSION} | ),")"|) | ("+" | "-" |"not"), FACTOR | "(", BOOLEXPRESSION, ")" | "read", "(", ")" ;
+TYPE = "number" | "string" | "boolean" ;
+NUMBER = DIGIT, {DIGIT} ;
+IDENTIFIER = LETTER, {LETTER | DIGIT | "_"} ;
+STRING = '"..."' ;
+DIGIT = "0" | "..." | "9";
+LETTER = "a" | "..." | "z" | "A" | "..." | "Z" ;
+BOOLEAN = "true" | "false" ;
 
 ```
 ![Diagrama Sintático do Compilador](image.png) 
