@@ -136,7 +136,11 @@ class Print(Node):
         super().__init__(value, children)
 
     def evaluate(self, st: SymbolTable):
-        print(self.children[0].evaluate(st).value)
+        val = self.children[0].evaluate(st).value
+        if isinstance(val, bool):
+            print(str(val).lower())
+        else:
+            print(val)
 
     def generate(self, st: SymbolTable):
         self.children[0].generate(st)
@@ -325,7 +329,11 @@ class BinOp(Node):
 
         # Concatenação
         if self.value == '..':
-            return Variable(str(filho1_result.value) + str(filho2_result.value), 'string')
+            def to_str(v):
+                if isinstance(v, bool):
+                    return str(v).lower()
+                return str(v)
+            return Variable(to_str(filho1_result.value) + to_str(filho2_result.value), 'string')
 
         raise ValueError(f"[Semantic] Operador inválido {self.value}")
 
