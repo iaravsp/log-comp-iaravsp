@@ -291,7 +291,7 @@ class BinOp(Node):
         filho1_result = self.children[0].evaluate(st)
         filho2_result = self.children[1].evaluate(st)
 
-        if self.value in ['+', '-', '*', '/', '^', '**', '>', '<']:
+        if self.value in ['+', '-', '*', '/', '^', '**']:
             if filho1_result.type != 'number' or filho2_result.type != 'number':
                 raise ValueError(f"[Semantic] Operação '{self.value}' exige que ambos sejam 'number'. Recebeu {filho1_result.type} e {filho2_result.type}.")
             if self.value == '+': return Variable(filho1_result.value + filho2_result.value, 'number')
@@ -302,10 +302,19 @@ class BinOp(Node):
                 return Variable(filho1_result.value // filho2_result.value, 'number')
             if self.value == '^': return Variable(filho1_result.value ^ filho2_result.value, 'number')
             if self.value == '**': return Variable(filho1_result.value ** filho2_result.value, 'number')
+            
+        if self.value in ['>', '<']:
+            if filho1_result.type != filho2_result.type:
+                raise ValueError(f"[Semantic] Operação '{self.value}' exige tipos iguais. Recebeu {filho1_result.type} e {filho2_result.type}.")
+            if filho1_result.type not in ['number', 'string']:
+                raise ValueError(f"[Semantic] Operação '{self.value}' não suportada para o tipo '{filho1_result.type}'.")
+                
             if self.value == '>': return Variable(filho1_result.value > filho2_result.value, 'boolean')
             if self.value == '<': return Variable(filho1_result.value < filho2_result.value, 'boolean')
 
         if self.value == '==':
+            if filho1_result.type != filho2_result.type:
+                raise ValueError(f"[Semantic] Tipos incompatíveis para '==': '{filho1_result.type}' e '{filho2_result.type}'.")
             return Variable(filho1_result.value == filho2_result.value, 'boolean')
 
         if self.value in ['or', 'and']:
@@ -314,6 +323,7 @@ class BinOp(Node):
             if self.value == 'or': return Variable(filho1_result.value or filho2_result.value, 'boolean')
             if self.value == 'and': return Variable(filho1_result.value and filho2_result.value, 'boolean')
 
+        # Concatenação
         if self.value == '..':
             return Variable(str(filho1_result.value) + str(filho2_result.value), 'string')
 
@@ -419,7 +429,11 @@ class FuncCall(Node):
 
 class If(Node):
     def evaluate(self, st: SymbolTable):
-        if self.children[0].evaluate(st).value:
+        condicao = self.children[0].evaluate(st)
+        if condicao.type != 'boolean':
+            raise ValueError(f"[Semantic] Condição do if deve ser 'boolean', recebeu '{condicao.type}'")
+            
+        if condicao.value:
             result = self.children[1].evaluate(st)
             if result is not None:
                 return result
@@ -446,6 +460,10 @@ class If(Node):
 
 class While(Node):
     def evaluate(self, st: SymbolTable):
+        condicao_inicial = self.children[0].evaluate(st)
+        if condicao_inicial.type != 'boolean':
+            raise ValueError(f"[Semantic] Condição do 'while' deve ser 'boolean', recebeu '{condicao_inicial.type}'")
+            
         while self.children[0].evaluate(st).value:
             result = self.children[1].evaluate(st)
             if result is not None:
