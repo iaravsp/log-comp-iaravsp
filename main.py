@@ -39,11 +39,6 @@ class SymbolTable:
         self._offset += 4
         self.table[name] = Variable(value, type, self._offset, is_func=is_func)
 
-    def get_root(self):
-        if self.parent is None:
-            return self
-        return self.parent.get_root()
-
 
 class Variable:
     def __init__(self, value, type, shift=0, is_func=False):
@@ -344,7 +339,7 @@ class Return(Node):
         return self.children[0].evaluate(st)
 
     def generate(self, st: SymbolTable):
-        pass 
+        pass
 
 
 class FuncDec(Node):
@@ -353,8 +348,12 @@ class FuncDec(Node):
 
     def evaluate(self, st: SymbolTable):
         nome = self.children[0].value
-        tipo_retorno = self.value  
-        root_st = st.get_root()
+        tipo_retorno = self.value
+        
+        root_st = st
+        while root_st.parent is not None:
+            root_st = root_st.parent
+            
         root_st.create_variable(nome, self, tipo_retorno if tipo_retorno else 'void', is_func=True)
 
     def generate(self, st: SymbolTable):
@@ -367,9 +366,11 @@ class FuncCall(Node):
 
     def evaluate(self, st: SymbolTable):
         nome = self.value
+
         func_var = st.get_value(nome)
         if not func_var.is_func:
             raise ValueError(f"[Semantic] '{nome}' não é uma função")
+
         func_dec = func_var.value
         params = func_dec.children[1:-1]
         args   = self.children
@@ -380,7 +381,11 @@ class FuncCall(Node):
                 f"mas recebeu {len(args)}"
             )
 
-        local_st = SymbolTable(parent=st.get_root())
+        root_st = st
+        while root_st.parent is not None:
+            root_st = root_st.parent
+            
+        local_st = SymbolTable(parent=root_st)
 
         for param, arg_node in zip(params, args):
             param_nome = param.children[0].value
@@ -395,6 +400,7 @@ class FuncCall(Node):
 
         corpo = func_dec.children[-1]
         resultado = corpo.evaluate(local_st)
+
         tipo_retorno = func_var.type
         if tipo_retorno == 'void':
             return None
@@ -596,6 +602,7 @@ class Lexer:
 
 class Parser:
     lexer = None
+
     @staticmethod
     def parse_expression():
         resultado = Parser.parse_term()
@@ -641,7 +648,17 @@ class Parser:
             nome = tok.value
             Parser.lexer.select_next()
             if Parser.lexer.next.type == 'OPEN_PAR':
-                return Parser.parse_func_call(nome)
+                Parser.lexer.select_next() 
+                args = []
+                if Parser.lexer.next.type != 'CLOSE_PAR':
+                    args.append(Parser.parse_bool_expression())
+                    while Parser.lexer.next.type == 'COMMA':
+                        Parser.lexer.select_next()
+                        args.append(Parser.parse_bool_expression())
+                if Parser.lexer.next.type != 'CLOSE_PAR':
+                    raise ValueError("[Parser] Esperado ')' na chamada de função")
+                Parser.lexer.select_next()
+                return FuncCall(nome, args)
             return Identifier(nome, [])
         elif tok.type in ('MINUS', 'PLUS'):
             sinal = tok.type
@@ -695,23 +712,8 @@ class Parser:
 
 
     @staticmethod
-    def parse_func_call(nome):
-        Parser.lexer.select_next() 
-        args = []
-        if Parser.lexer.next.type != 'CLOSE_PAR':
-            args.append(Parser.parse_bool_expression())
-            while Parser.lexer.next.type == 'COMMA':
-                Parser.lexer.select_next()
-                args.append(Parser.parse_bool_expression())
-        if Parser.lexer.next.type != 'CLOSE_PAR':
-            raise ValueError("[Parser] Esperado ')' na chamada de função")
-        Parser.lexer.select_next()
-        return FuncCall(nome, args)
-
-
-    @staticmethod
     def parse_func_declaration():
-        Parser.lexer.select_next()
+        Parser.lexer.select_next()  
         if Parser.lexer.next.type != 'IDEN':
             raise ValueError("[Parser] Esperado nome de função após 'function'")
         nome_func = Parser.lexer.next.value
@@ -724,7 +726,7 @@ class Parser:
         params = []
         if Parser.lexer.next.type != 'CLOSE_PAR':
             if Parser.lexer.next.type != 'IDEN':
-                raise ValueError("[Parser] Esperado identificador no parâmetroo")
+                raise ValueError("[Parser] Esperado identificador no parâmetro")
             param_nome = Parser.lexer.next.value
             Parser.lexer.select_next()
             if Parser.lexer.next.type != 'TYPE':
@@ -754,8 +756,18 @@ class Parser:
         if Parser.lexer.next.type != 'END':
             raise ValueError("[Parser] Esperado '\\n' após assinatura da função")
         Parser.lexer.select_next()
-
-        corpo = Parser.parse_func_body()
+        comandos_corpo = []
+        while Parser.lexer.next.type not in ('EOF', 'CLOSE_BRA'):
+            if Parser.lexer.next.type == 'END':
+                Parser.lexer.select_next()
+                continue
+            no = Parser.parse_statement()
+            comandos_corpo.append(no)
+            if Parser.lexer.next.type == 'END':
+                Parser.lexer.select_next()
+            elif Parser.lexer.next.type not in ('EOF', 'CLOSE_BRA'):
+                raise ValueError(f"[Parser] Token inesperado no corpo da função: {Parser.lexer.next.type}")
+        corpo = Block(None, comandos_corpo)
 
         if Parser.lexer.next.type != 'CLOSE_BRA':
             raise ValueError("[Parser] Esperado 'end' ao final da função")
@@ -763,22 +775,6 @@ class Parser:
 
         children = [Identifier(nome_func, [])] + params + [corpo]
         return FuncDec(tipo_retorno, children)
-
-    @staticmethod
-    def parse_func_body():
-        comandos = []
-        while Parser.lexer.next.type not in ('EOF', 'CLOSE_BRA'):
-            if Parser.lexer.next.type == 'END':
-                Parser.lexer.select_next()
-                continue
-            no = Parser.parse_statement()
-            comandos.append(no)
-            if Parser.lexer.next.type == 'END':
-                Parser.lexer.select_next()
-            elif Parser.lexer.next.type not in ('EOF', 'CLOSE_BRA'):
-                raise ValueError(f"[Parser] Token inesperado no corpo da função: {Parser.lexer.next.type}")
-        return Block(None, comandos)
-
 
     @staticmethod
     def parse_program():
@@ -818,6 +814,23 @@ class Parser:
             elif Parser.lexer.next.type not in ('EOF', 'CLOSE_BRA', 'ELSE'):
                 raise ValueError(f"[Parser] Token inesperado no bloco: {Parser.lexer.next.type}")
         return Block(None, comandos)
+
+    @staticmethod
+    def parse_var_declaration():
+        Parser.lexer.select_next()
+        if Parser.lexer.next.type != 'IDEN':
+            raise ValueError("[Parser] Esperado identificador após 'local'")
+        nome_variavel = Parser.lexer.next.value
+        Parser.lexer.select_next()
+        if Parser.lexer.next.type != 'TYPE':
+            raise ValueError("[Parser] Esperado tipo após nome da variável")
+        tipo_variavel = Parser.lexer.next.value
+        Parser.lexer.select_next()
+        if Parser.lexer.next.type == 'ASSIGN':
+            Parser.lexer.select_next()
+            expression = Parser.parse_bool_expression()
+            return VarDec(tipo_variavel, [Identifier(nome_variavel, []), expression])
+        return VarDec(tipo_variavel, [Identifier(nome_variavel, [])])
 
 
     @staticmethod
@@ -865,7 +878,17 @@ class Parser:
             nome = tok.value
             Parser.lexer.select_next()
             if Parser.lexer.next.type == 'OPEN_PAR':
-                return Parser.parse_func_call(nome)
+                Parser.lexer.select_next() 
+                args = []
+                if Parser.lexer.next.type != 'CLOSE_PAR':
+                    args.append(Parser.parse_bool_expression())
+                    while Parser.lexer.next.type == 'COMMA':
+                        Parser.lexer.select_next()
+                        args.append(Parser.parse_bool_expression())
+                if Parser.lexer.next.type != 'CLOSE_PAR':
+                    raise ValueError("[Parser] Esperado ')' na chamada de função")
+                Parser.lexer.select_next()
+                return FuncCall(nome, args)
             elif Parser.lexer.next.type == 'ASSIGN':
                 Parser.lexer.select_next()
                 expression = Parser.parse_bool_expression()
@@ -891,21 +914,7 @@ class Parser:
             return bloco
 
         elif tok.type == 'VAR':
-            Parser.lexer.select_next()
-            if Parser.lexer.next.type != 'IDEN':
-                raise ValueError("[Parser] Esperado identificador após 'local'")
-            nome_variavel = Parser.lexer.next.value
-            Parser.lexer.select_next()
-            if Parser.lexer.next.type != 'TYPE':
-                raise ValueError("[Parser] Esperado tipo após nome da variável")
-            tipo_variavel = Parser.lexer.next.value
-            Parser.lexer.select_next()
-            if Parser.lexer.next.type == 'ASSIGN':
-                Parser.lexer.select_next()
-                expression = Parser.parse_bool_expression()
-                return VarDec(tipo_variavel, [Identifier(nome_variavel, []), expression])
-            return VarDec(tipo_variavel, [Identifier(nome_variavel, [])])
-
+            return Parser.parse_var_declaration()
         elif tok.type == 'RETURN':
             Parser.lexer.select_next()
             expression = Parser.parse_bool_expression()
@@ -913,8 +922,6 @@ class Parser:
 
         else:
             return NoOp()
-
-
 
 
 def main():
